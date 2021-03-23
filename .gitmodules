@@ -1,0 +1,3 @@
+[submodule "fluentd.org"]
+	path = fluentd.org
+	url = https://github.com/digikin/fluentd-elastic-kibana

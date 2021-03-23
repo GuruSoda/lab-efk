@@ -1,0 +1,169 @@
+version: "3.1"
+services:
+
+  srapoc:
+    image: www.planetaguru.com.ar/srapoc
+    ports:
+      - "28275:28275"
+    hostname: srapoc
+    restart: unless-stopped
+    networks:
+      - loggingnet
+    depends_on:
+      - fluentd
+#    logging:
+#      driver: fluentd
+#      options:
+#        fluentd-address: localhost:24224
+#        fluentd-async-connect: "true"
+#        tag: srapoc.log
+
+  armame:
+    image: www.planetaguru.com.ar/srapoc
+    ports:
+      - "30003:28275"
+    hostname: armame
+    restart: unless-stopped
+    networks:
+      - loggingnet
+    depends_on:
+      - fluentd
+#    logging:
+#      driver: fluentd
+#      options:
+#        fluentd-address: localhost:24224
+#        fluentd-async-connect: "true"
+#        tag: srapoc.log
+
+  fluentd:
+#    image: fluent/fluentd:v1.12-1 
+    build: ./fluentd
+    hostname: fluentd
+    volumes:
+      - ./fluent.conf:/fluentd/etc/fluent.conf
+      - ./logs/custom.log:/opt/custom.log
+      - ./logs/libre.log:/opt/libre.log
+      - ./logs/mame.log:/opt/mame.log
+      - ./logs/haproxy.log:/opt/haproxy.log
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - loggingnet
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.10.2 
+    hostname: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS="http://es01:9200"
+    ports:
+      - 5601:5601
+    depends_on:
+      - es01
+      - es02
+      - es03
+    networks:
+      - loggingnet
+
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - loggingnet
+    scale: 1
+
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    container_name: es02
+    environment:
+      - node.name=es02
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data02:/usr/share/elasticsearch/data
+    networks:
+      - loggingnet
+    scale: 1
+
+  es03:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    container_name: es03
+    environment:
+      - node.name=es03
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data03:/usr/share/elasticsearch/data
+    networks:
+      - loggingnet 
+    scale: 1
+
+  carga:
+    image: www.planetaguru.com.ar/carga-logging
+    command: curl http://srapoc:28275/api/hostname
+    scale: 0
+    depends_on:
+      - srapoc
+      - fluentd
+    networks:
+      - loggingnet
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        fluentd-async-connect: "true"
+        tag: batch 
+
+  juegos:
+    image: www.planetaguru.com.ar/srapoc
+#    command: node clientes/listaCompleta.js --url http://armame:28275 > /opt/tmp/juegosmame.json
+    scale: 0
+    volumes:
+      - /home/ubuntu/logging:/opt/tmp:rw
+    depends_on:
+      - armame
+      - fluentd
+    networks:
+      - loggingnet
+
+networks:
+  loggingnet:
+    driver: bridge
+
+volumes:
+  data01:
+    driver: local
+  data02:
+    driver: local
+  data03:
+    driver: local
+

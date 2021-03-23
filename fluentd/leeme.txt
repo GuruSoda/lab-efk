@@ -1,0 +1,2 @@
+La imagen de docker de fluentd viene sin el plugin de elasticsearch, para que tenga el plugin hay que instalarlo en una nueva imagen.
+

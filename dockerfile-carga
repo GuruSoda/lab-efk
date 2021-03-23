@@ -1,0 +1,7 @@
+# contruccion:
+# docker build -t www.planetaguru.com.ar/carga-logging -f dockerfile-carga  .
+
+FROM alpine
+
+RUN apk update && apk upgrade && apk add curl nodejs npm
+
